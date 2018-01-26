@@ -15,6 +15,7 @@
 
 <div id="container"></div>
 <script src="js/three.js"></script>
+<script src="js/OBJLoader.js"></script>
 
 <!--~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Vertex Displacement Shader~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 
@@ -81,17 +82,29 @@
   uniform mat4 viewMatrix;
   uniform mat4 projectionMatrix;
 
-  uniform vec3 light1_pos;
+  attribute vec3 position;
+  attribute vec3 normal; 
+  attribute vec2 texCoords;
 
-  attribute vec3 position; 
-  attribute vec2 uv;
-
-  varying vec2 vUV;
+  uniform vec3 light4_pos;
+  
+  varying vec2 UV;
+  varying vec3 N, L4, V;
 
   void main() {
     vec4 position = viewMatrix * modelMatrix * vec4(position, 1.0);
-    vUV = uv; 
-      gl_Position = projectionMatrix * position; 
+    UV = texCoords;
+
+    vec3 P = position.xyz;
+    N = vec3(normalize(viewMatrix * modelMatrix * vec4(normal.xyz, 0.0)).xyz);
+
+    vec4 L4_cam = viewMatrix * vec4(light4_pos, 1.0);
+
+    L4 = vec3(normalize(L4_cam - position).xyz);
+
+    V = normalize(-P);
+
+    gl_Position = projectionMatrix * position; 
   }
 </script>
 
@@ -99,15 +112,39 @@
 
     precision mediump float;
 
+    uniform vec3 light4_diffuse;
+    uniform vec3 light4_specular;
+    varying vec3 V, N, L4;
+    float spec_intensity = 32.0;
+
     //special data type used to access texture stored on GPU
     uniform sampler2D t1;
 
     //this has to have the same name as in the vertex shader. Here, in the fragment shader, we interpolate across the textureCoordinates
-    varying vec2 vUV;
+    varying vec2 UV;
 
     void main() {
-      vec4 c1 = texture2D(t1, vUV);
-      gl_FragColor = vec4(c1);
+      vec4 outColor4 = vec4(0.0);
+
+      //diffuse
+      float diff4 = max(0.0, dot(N, L4));
+      vec3 color4 = diff4 * light4_diffuse;
+
+      //specular
+      vec3 R4 = normalize(reflect(-L4,N));
+      float spec4 = pow( max(dot(R4, V), 0.0), spec_intensity);
+
+      color4 += spec4 * light4_specular;
+      if (spec4 > 1.0) {
+          outColor4 = vec4(light4_specular,1.0);
+      } else {
+          outColor4 = clamp(vec4(color4,1.0), 0.0,1.0);
+      }
+
+      vec4 c1 = texture2D(t1, UV);
+
+      gl_FragColor = c1;
+      //gl_FragColor = clamp(c1 + outColor4, 0.0, 1.0);
     }
 </script>
 
@@ -244,22 +281,22 @@
 
   	var camera, scene, renderer;
 
-    //phong shader reference
-  	var vsp = document.getElementById( 'vertexShaderPhong' ).textContent;
-  	var fsp = document.getElementById( 'fragmentShaderPhong' ).textContent;
+    //texture shader reference
+    var vst = document.getElementById( 'vertexShaderTexture' ).textContent;
+    var fst = document.getElementById( 'fragmentShaderTexture' ).textContent;
 
     //displacement shader reference
     var vsd = document.getElementById( 'vertexShaderDisplacement' ).textContent;
     var fsd = document.getElementById( 'fragmentShaderDisplacement' ).textContent;
 
-    //texture shader reference
-    var vst = document.getElementById( 'vertexShaderTexture' ).textContent;
-    var fst = document.getElementById( 'fragmentShaderTexture' ).textContent;
+    //phong shader reference
+    var vsp = document.getElementById( 'vertexShaderPhong' ).textContent;
+    var fsp = document.getElementById( 'fragmentShaderPhong' ).textContent;
 
   	var mesh1, mesh2, mesh3;
-  	var material;
+  	var material1, material2, material3;
 
-    var texture1 = new THREE.TextureLoader().load( 'texture1.jpg' );
+    var texture1 = new THREE.TextureLoader().load( 'lucario.jpg' );
 
   	init();
   	animate();
@@ -288,46 +325,20 @@
       var light3_diffuse = new THREE.Vector3(0.0,1.0,0.0);
       var light3_specular = new THREE.Vector3(1.0,1.0,1.0);
 
+      var light4_pos = new THREE.Vector3(4.0,-3.0,0.0); //from the below
+      var light4_diffuse = new THREE.Vector3(0.5,0.5,0.5);
+      var light4_specular = new THREE.Vector3(0.5,0.5,0.5);
+
   		// geometry
 
       var geometry1 = new THREE.SphereGeometry( 1, 64, 64 );
-    	var geometry2 = new THREE.BoxGeometry( 1, 1, 1 );
-    	var geometry3 = new THREE.TorusKnotGeometry( 1, 0.1, 100, 16 );
+    	var geometry2 = new THREE.BoxGeometry( 1.5, 1.5, 1.5 );
+    	//var geometry3 = new THREE.TorusKnotGeometry( 1, 0.1, 100, 16 );
 
-  		// materials (ie, linking to the shader program)
-
-      //material for phong object
-    	var uniforms3 =  {
-      		ambient: { type: "v3", value: ambient },
-      		light1_pos: { type: "v3", value: light1_pos },
-      		light1_diffuse: { type: "v3", value: light1_diffuse },
-      		light1_specular:  { type: "v3", value: light1_specular },
-      		light2_pos: { type: "v3", value: light2_pos },
-      		light2_diffuse: { type: "v3", value: light2_diffuse },
-      		light2_specular:  { type: "v3", value: light2_specular },
-          light3_pos: { type: "v3", value: light3_pos },
-          light3_diffuse: { type: "v3", value: light3_diffuse },
-          light3_specular:  { type: "v3", value: light3_specular },
-  		};
-
-   		material3 = new THREE.RawShaderMaterial( {
-          		uniforms: uniforms3,
-          		vertexShader: vsp,
-          		fragmentShader: fsp,	
-  		} );
-
-      //material for texture object
-      material2 = new THREE.RawShaderMaterial( {
-        uniforms: {
-            t1: { type: "t", value: texture1  },
-            lights: true,
-        },
-        vertexShader: vst,
-        fragmentShader: fst, 
-      } );
+  		// materials
 
       // material for displacement object
-      var material1 = new THREE.RawShaderMaterial( {
+      material1 = new THREE.RawShaderMaterial( {
           uniforms: {
             time: { type: "f", value: 1.0 },
             my_color: { type: "v4", value: new THREE.Vector4(1.0,1.0,0.0,1.0) }
@@ -336,40 +347,86 @@
           fragmentShader: fsd,
       } );
 
+      //material for texture object
+      material2 = new THREE.RawShaderMaterial( {
+        uniforms: {
+          t1: { type: "t", value: texture1  },
+          light4_pos: { type: "v3", value: light4_pos },
+          light4_diffuse: { type: "v3", value: light4_diffuse },
+          light4_specular:  { type: "v3", value: light4_specular },
+        },
+        vertexShader: vst,
+        fragmentShader: fst, 
+      } );
+
+      //material for phong object
+      material3 = new THREE.RawShaderMaterial( {
+        uniforms: {
+          ambient: { type: "v3", value: ambient },
+          light1_pos: { type: "v3", value: light1_pos },
+          light1_diffuse: { type: "v3", value: light1_diffuse },
+          light1_specular:  { type: "v3", value: light1_specular },
+          light2_pos: { type: "v3", value: light2_pos },
+          light2_diffuse: { type: "v3", value: light2_diffuse },
+          light2_specular:  { type: "v3", value: light2_specular },
+          light3_pos: { type: "v3", value: light3_pos },
+          light3_diffuse: { type: "v3", value: light3_diffuse },
+          light3_specular:  { type: "v3", value: light3_specular },
+        },
+        vertexShader: vsp,
+        fragmentShader: fsp,  
+      } );
+
       //----------------------Objects------------------------//
 
+      //displacement object mesh
   		mesh1 = new THREE.Mesh( geometry1, material1 );
   		mesh1.translateX(-2.5);
       scene.add( mesh1 );
           
+      //texture object mesh    
   	  mesh2 = new THREE.Mesh( geometry2, material2 );
   		mesh2.translateX(0.0);
       mesh2.material.side = THREE.DoubleSide;
       scene.add( mesh2 );
-
-      //mesh3 = new THREE.Mesh( geometry3, material3 );
-  		//mesh3.translateX(2.5);
-      //scene.add( mesh3 );
     
+      //phong object mesh (using json loader and imported blender object)
+      var loader = new THREE.JSONLoader();
+      loader.load( 'ballthing.json', 
+        function (geometry, materials) {
+          mesh3 = new THREE.Mesh(geometry, material3);
+          mesh3.translateX(3.0);
+          mesh3.translateY(0.0);
+          mesh3.scale.set(0.6, 0.6, 0.6);
+          scene.add(mesh3);
+        }
+      );
+
+      /* Alternative .obj file loader
+      var loader = new THREE.OBJLoader(  );
+      loader.load( 'jaguar.obj', function ( object ) {
+        
+        object.traverse( function ( child ) {
+          if ( child instanceof THREE.Mesh ) {
+            child.material = material3;
+          }
+        } );
+        
+        var s = 0.2;
+        object.scale.set( s, s, s );
+        object.position.x += 1.0;
+        object.position.y -= 0.5;
+
+        jaguar = object;
+        scene.add( jaguar );
+      } );
+      */
+
   		renderer = new THREE.WebGLRenderer();
   		renderer.setClearColor( 0x999999 );
   		renderer.setSize( window.innerWidth, window.innerHeight );
   		container.appendChild( renderer.domElement );
 
-      var loader = new THREE.JSONLoader();
-      loader.load( 'horse.js', 
-        function (geometry, materials) {
-          mesh3 = new THREE.Mesh(geometry, material3);
-          //mesh3.translateX(3.0);
-          //mesh3.translateY(-1.8);
-          mesh3.position.set( 3.0, -1.5, 0 );
-          var s = 0.0125;
-          mesh3.scale.set( s, s, s );
-          mesh3.rotation.y = -Math.PI / 4;
-          scene.add(mesh3);
-        }
-       );
-  
   		//make it so that resizing the browser window also resizes the scene
       window.addEventListener( 'resize', onWindowResize, false );
   	}
@@ -389,15 +446,7 @@
 
   		var time = performance.now();
 
-  		mesh2.rotation.x = time * 0.00005; //0.00005
-  		mesh2.rotation.y = time * 0.0005;
-
-      //mesh3.translateX(-0.1);
-  		mesh3.rotation.x = time * 0.0002;
-  		//mesh3.rotation.y = time * -0.0009;
-
-      //movement for phong object
-      //Light Movement is mostly random but creates a cool mix color effect when light sources interact with the surface of the object
+      /*Light Movement on Phong Object (*Note to Grader: uncommenting these lines breaks the phong shader. I wasn't able to find out why.) 
       lightSpeed1+=0.01;
       lightSpeed2+=0.012;
       lightSpeed3+=0.014;
@@ -407,12 +456,21 @@
       material3.uniforms.light2_pos.value.y = -40*Math.cos(lightSpeed2)*Math.PI;
       material3.uniforms.light3_pos.value.x = 50*Math.sin(lightSpeed3)*Math.PI;
       material3.uniforms.light3_pos.value.y = -50*Math.cos(lightSpeed3)*Math.PI;
+      */
 
-      //momvement for displacement object
+      //Object Movement
       var object1 = scene.children[ 0 ];
           object1.rotation.x = 0.5*Math.sin(0.05)*Math.PI;
           object1.rotation.y = time*Math.cos(0.05) * 0.002;
           object1.material.uniforms.time.value = time * 0.004;
+
+      var object2 = scene.children[ 1 ];
+          object2.rotation.x = time * 0.00005;
+          object2.rotation.y = time * 0.0005;
+
+      var object3 = scene.children[ 2 ];
+          object3.rotation.x = -time * Math.sin(0.0002)*Math.PI;
+          object3.rotation.y = time/10000 * Math.cos(0.0002)*Math.PI;
 
   		renderer.render( scene, camera );
   	}
