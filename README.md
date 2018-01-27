@@ -1,6 +1,5 @@
 # mjloyola.github.io
-## CMPM163 Homework ##
-### Matthew Loyola ###
+## CMPM163 Homework - Matthew Loyola ##
 
 Homework 1A: https://mjloyola.github.io/homework/homework1/homework1a.html
 
