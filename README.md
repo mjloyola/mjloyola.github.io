@@ -1,5 +1,5 @@
 # mjloyola.github.io
-##CMPM163 Homework##
+## CMPM163 Homework ##
 
 Homework 1A: https://mjloyola.github.io/homework/homework1/homework1a.html
 
