@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html lang="en">
 	<head>
-		<title>demo - Phong shader</title>
+		<title>Homework1B - mjloyola</title>
 		<meta charset="utf-8">
 		<style>
 			body {
@@ -15,7 +15,7 @@
 
 <div id="container"></div>
 
-    <script src="../js/three.js"></script>
+    <script src="js/three.js"></script>
     <script id="vertexShader" type="x-shader/x-vertex">
 
 	//Three.js gives us these automatically when a perspective camera is bound to the renderer
@@ -23,24 +23,21 @@
 	uniform mat4 projectionMatrix;
 	
 	//Since we are using BufferGeometry, we have defined the attributes that we need manually
-     	attribute vec3 position;
+    attribute vec3 position;
 	attribute vec2 texCoords;
 
 	//link variables between the vertex shader and the fragment shader
 	varying vec2 UV;
 
 	void main() {
-
 		//pass our interpolated texCoords to the fragment shader
 	   	UV = texCoords;
 
-        	//of course, we always have to output our vertices in clip coords by multiplying through a projection matrix.
-        	gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); 
-		
-     	 }
+		//of course, we always have to output our vertices in clip coords by multiplying through a projection matrix.
+		gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); 	
+    }
 
     </script>
-
 
     <script id="fragmentShader" type="x-shader/x-fragment">
 
@@ -60,48 +57,63 @@
 
       	void main() {
 
-		//see https://en.wikipedia.org/wiki/Sobel_operator
+		//This is a mixture of the "Sobel Operator" (with modifications) and the "Box Blur"
+		//Note: The upper-left corner of the window will yield the original image, then moving the mouse in any direction will apply the effects
 		
 		vec2 texel = vec2( 1.0 / rx, 1.0 / ry );
 
 		const mat3 Gx = mat3( -1, -2, -1, 0, 0, 0, 1, 2, 1 ); // x direction kernel
 		const mat3 Gy = mat3( -1, 0, 1, -2, 0, 2, -1, 0, 1 ); // y direction kernel
 
+		const mat3 Gxy = mat3(1, 1, 1, 1, 1, 1, 1, 1, 1);
+
+		float tx0y0 = texture2D( t1, UV + texel * vec2( -1,  1 )).r;
+		float tx0y1 = texture2D( t1, UV + texel * vec2( +0,  1 )).r;
+		float tx0y2 = texture2D( t1, UV + texel * vec2( +1,  1 )).r;
+
+		float tx1y0 = texture2D( t1, UV + texel * vec2( -1,  0 )).r;
+		float tx1y1 = texture2D( t1, UV + texel * vec2( +0,  0 )).r;
+		float tx1y2 = texture2D( t1, UV + texel * vec2( +1,  0 )).r;
+
+		float tx2y0 = texture2D( t1, UV + texel * vec2( -1, -1 )).r;
+		float tx2y1 = texture2D( t1, UV + texel * vec2( +0, -1 )).r;
+		float tx2y2 = texture2D( t1, UV + texel * vec2( +1, -1 )).r;
+
+		float tx0y0_1 = texture2D( t1, UV + texel * vec2( -1, -1 ) ).r;
+		float tx0y1_1 = texture2D( t1, UV + texel * vec2( -1,  0 ) ).r;
+		float tx0y2_1 = texture2D( t1, UV + texel * vec2( -1,  1 ) ).r;
+
+		float tx1y0_1 = texture2D( t1, UV + texel * vec2(  0, -1 ) ).r;
+		float tx1y1_1 = texture2D( t1, UV + texel * vec2(  0,  0 ) ).r;
+		float tx1y2_1 = texture2D( t1, UV + texel * vec2(  0,  1 ) ).r;
+
+		float tx2y0_1 = texture2D( t1, UV + texel * vec2(  1, -1 ) ).r;
+		float tx2y1_1 = texture2D( t1, UV + texel * vec2(  1,  0 ) ).r;
+		float tx2y2_1 = texture2D( t1, UV + texel * vec2(  1,  1 ) ).r;
+
+		float upperRow = tx0y0 + tx0y1 + tx0y2;
+		float centerRow = tx1y0 + tx1y1 + tx1y2;
+		float bottomRow = tx2y0 + tx2y1 + tx2y2;
+
+		float valueGx = Gx[0][0] * tx0y0_1 + Gx[1][0] * tx1y0_1 + Gx[2][0] * tx2y0_1 + 
+						Gx[0][1] * tx0y1_1 + Gx[1][1] * tx1y1_1 + Gx[2][1] * tx2y1_1 + 
+						Gx[0][2] * tx0y2_1 + Gx[1][2] * tx1y2_1 + Gx[2][2] * tx2y2_1;
+
+		float valueGy = Gy[0][0] * tx0y0_1 + Gy[1][0] * tx1y0_1 + Gy[2][0] * tx2y0_1 + 
+						Gy[0][1] * tx0y1_1 + Gy[1][1] * tx1y1_1 + Gy[2][1] * tx2y1_1 + 
+						Gy[0][2] * tx0y2_1 + Gy[1][2] * tx1y2_1 + Gy[2][2] * tx2y2_1;
+
+		float G_1 = sqrt( ( valueGx * valueGx ) + ( valueGy * valueGy ) );
+		float G = (upperRow + centerRow + bottomRow) * (0.11111111111); 
 		
-		// fetch the 3x3 neighborhood of a fragment
-		float tx0y0 = texture2D( t1, UV + texel * vec2( -1, -1 ) ).r;
-		float tx0y1 = texture2D( t1, UV + texel * vec2( -1,  0 ) ).r;
-		float tx0y2 = texture2D( t1, UV + texel * vec2( -1,  1 ) ).r;
+		vec4 edgePix = vec4(vec3(G_1) + vec3(G), 1.0); //mix of both methods
+		//vec4 edgePix = vec4( vec3( G_1 ), 1.0);
+		vec4 texPix = texture2D(t1, UV); //image data
 
-		float tx1y0 = texture2D( t1, UV + texel * vec2(  0, -1 ) ).r;
-		float tx1y1 = texture2D( t1, UV + texel * vec2(  0,  0 ) ).r;
-		float tx1y2 = texture2D( t1, UV + texel * vec2(  0,  1 ) ).r;
-
-		float tx2y0 = texture2D( t1, UV + texel * vec2(  1, -1 ) ).r;
-		float tx2y1 = texture2D( t1, UV + texel * vec2(  1,  0 ) ).r;
-		float tx2y2 = texture2D( t1, UV + texel * vec2(  1,  1 ) ).r;
-
-		float valueGx = Gx[0][0] * tx0y0 + Gx[1][0] * tx1y0 + Gx[2][0] * tx2y0 + 
-				Gx[0][1] * tx0y1 + Gx[1][1] * tx1y1 + Gx[2][1] * tx2y1 + 
-				Gx[0][2] * tx0y2 + Gx[1][2] * tx1y2 + Gx[2][2] * tx2y2;
-
-		float valueGy = Gy[0][0] * tx0y0 + Gy[1][0] * tx1y0 + Gy[2][0] * tx2y0 + 
-				Gy[0][1] * tx0y1 + Gy[1][1] * tx1y1 + Gy[2][1] * tx2y1 + 
-				Gy[0][2] * tx0y2 + Gy[1][2] * tx1y2 + Gy[2][2] * tx2y2;
-
-		float G = sqrt( ( valueGx * valueGx ) + ( valueGy * valueGy ) );
-		
-		vec4 edgePix = vec4(vec3(1.0) - vec3( G ), 1.0);
-		//vec4 edgePix = vec4( vec3( G ), 1.0);
-		vec4 texPix = texture2D(t1, UV);
-
-		//gl_FragColor = vec4( vec3(1.0) - vec3( G ), 1 );
 		gl_FragColor = mix(texPix, edgePix, mixVal); 
-
 	}
 
 	</script>
-
 
 	<script>
 				
@@ -109,21 +121,19 @@
 
 	var camera, scene, renderer;
 
-      	var vs = document.getElementById( 'vertexShader' ).textContent;
-      	var fs = document.getElementById( 'fragmentShader' ).textContent;
+  	var vs = document.getElementById( 'vertexShader' ).textContent;
+  	var fs = document.getElementById( 'fragmentShader' ).textContent;
 
 	var mesh;
 	var material;
 
-
-	var texture1 = new THREE.TextureLoader().load( 'umbrella.png' );
+	var texture1 = new THREE.TextureLoader().load( 'fallout.jpg' );
 
 	var mouseX = 0.0;
 	var mouseY = 0.0;
 
 	init();
 	animate();
-
 
 	function init() {
 
@@ -134,20 +144,18 @@
 
 		scene = new THREE.Scene();
 
-
 		// buffer geometry
 
 		var geometry = new THREE.BufferGeometry();
 
 		var vertices = new Float32Array( [
-			-1.0, -1.0, 0.0,
-			+1.0, -1.0, 0.0,
-			+1.0, +1.0, 0.0,
+			-2.5, -1.2, 0.0,
+			+2.5, -1.2, 0.0,
+			+2.5, +1.2, 0.0,
 	 
-			-1.0, -1.0, 0.0,
-			+1.0, +1.0, 0.0,
-			-1.0, +1.0, 0.0,
-
+			-2.5, -1.2, 0.0,
+			+2.5, +1.2, 0.0,
+			-2.5, +1.2, 0.0,
 		] );
 
 		var texCoords = new Float32Array( [
@@ -160,19 +168,16 @@
 			0.0, 1.0,
 		] );
 
-
-
 		// itemSize = 3 because there are 3 values (components) per vertex
 		geometry.addAttribute( 'position', new THREE.BufferAttribute( vertices, 3 ) );
 		geometry.addAttribute( 'texCoords', new THREE.BufferAttribute( texCoords, 2 ) );
-
 
 		// materials (ie, linking to the shader program)
 		var uniforms = {
     			t1: { type: "t", value: texture1  },
 			rx: {type: "f", value: 1024/2},
 			ry: {type: "f", value: 1024/2},
-			mixVal: {type: "f", value: 0.5},
+			mixVal: {type: "f", value: 0.01},
 		};
 	
 
@@ -202,7 +207,6 @@
 	}
 
 
-
 	function animate() {
 
 		requestAnimationFrame( animate );
@@ -214,7 +218,8 @@
 
 		var time = performance.now();
 
-		mesh.material.uniforms.mixVal.value = mouseX;
+		//mouse location changes mix quite dramatically at all positions
+		mesh.material.uniforms.mixVal.value = 10*(mouseX + mouseY);
 
 		renderer.render( scene, camera );
 	}
@@ -225,19 +230,14 @@
 		mouseY = -(event.clientY / window.innerHeight) ;
 	}
 
-
 	function onWindowResize( event ) {
 
 		camera.aspect = window.innerWidth / window.innerHeight;
 		camera.updateProjectionMatrix();
 
 		renderer.setSize( window.innerWidth, window.innerHeight );
-
 	}
-
-
-		</script>
-
+	</script>
 	</body>
 </html>
 

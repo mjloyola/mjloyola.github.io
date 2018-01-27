@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html lang="en">
 	<head>
-		<title>Homework1A</title>
+		<title>Homework1A - mjloyola</title>
 		<meta charset="utf-8">
 		<style>
 			body {
@@ -84,16 +84,16 @@
 
   attribute vec3 position;
   attribute vec3 normal; 
-  attribute vec2 texCoords;
+  attribute vec2 uv;
 
   uniform vec3 light4_pos;
   
-  varying vec2 UV;
+  varying vec2 vUV;
   varying vec3 N, L4, V;
 
   void main() {
     vec4 position = viewMatrix * modelMatrix * vec4(position, 1.0);
-    UV = texCoords;
+    vUV = uv;
 
     vec3 P = position.xyz;
     N = vec3(normalize(viewMatrix * modelMatrix * vec4(normal.xyz, 0.0)).xyz);
@@ -121,7 +121,7 @@
     uniform sampler2D t1;
 
     //this has to have the same name as in the vertex shader. Here, in the fragment shader, we interpolate across the textureCoordinates
-    varying vec2 UV;
+    varying vec2 vUV;
 
     void main() {
       vec4 outColor4 = vec4(0.0);
@@ -141,10 +141,9 @@
           outColor4 = clamp(vec4(color4,1.0), 0.0,1.0);
       }
 
-      vec4 c1 = texture2D(t1, UV);
+      vec4 c1 = texture2D(t1, vUV);
 
-      gl_FragColor = c1;
-      //gl_FragColor = clamp(c1 + outColor4, 0.0, 1.0);
+      gl_FragColor = clamp(c1 + outColor4, 0.0, 1.0);
     }
 </script>
 
@@ -301,6 +300,8 @@
   	init();
   	animate();
 
+    var light4_pos;
+
   	function init() {
 
   		container = document.getElementById( 'container' );
@@ -325,8 +326,8 @@
       var light3_diffuse = new THREE.Vector3(0.0,1.0,0.0);
       var light3_specular = new THREE.Vector3(1.0,1.0,1.0);
 
-      var light4_pos = new THREE.Vector3(4.0,-3.0,0.0); //from the below
-      var light4_diffuse = new THREE.Vector3(0.5,0.5,0.5);
+      light4_pos = new THREE.Vector3(4.0,-3.0,0.0); //from the below
+      var light4_diffuse = new THREE.Vector3(0.5,0.5,1.5);
       var light4_specular = new THREE.Vector3(0.5,0.5,0.5);
 
   		// geometry
@@ -465,8 +466,10 @@
           object1.material.uniforms.time.value = time * 0.004;
 
       var object2 = scene.children[ 1 ];
-          object2.rotation.x = time * 0.00005;
-          object2.rotation.y = time * 0.0005;
+          object2.rotation.x = time * 0.00008;
+          object2.rotation.y = time * 0.0008;
+          light4_pos.x += 5*Math.PI;
+          light4_pos.y += 5*Math.PI;
 
       var object3 = scene.children[ 2 ];
           object3.rotation.x = -time * Math.sin(0.0002)*Math.PI;
