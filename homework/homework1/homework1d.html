@@ -18,8 +18,14 @@
 			<br>
 			Images from Gameplay of "Layers of Fear"
 		</div>
-		<div style="text-align: left; font-size: 14pt; padding-left: 100pt ">
-			Analysis: ...
+		<div style="text-align: left; font-size: 14pt; padding-left: 80pt; padding-right: 80pt">
+			Analysis: 
+			<p>
+				&nbsp&nbsp&nbsp&nbsp&nbspI specifically chose these images because the game seems to utilize some of the shader effects we've discussed in lecture, namely what appears to be a form of vertex displacement. These images are in the order they take place in the game, within the span of a few seconds, where the picture frame texture slowly begins to degrade and morph from what was originally a perfect square to what eventually becomes this shape that looks like something out of a Dr. Seuss novel. When considering what game might have an interesting and unique use of shaders, I immediately thought of this game. Being in the horror genre, these types of games tend to rely on visual effects that appear unsettling. This is just one instance of such strange effects that occurs over the course of this relatively short game but the depth it creates to this painting suddenly makes the room feel much larger, soon feeling like you've become trapped inside its infinite expanse. I also like the red and grey color effect that's been applied over time as the shape morphs. It makes me think of a filter that you might apply to a photograph to make it seem artistic. This effect is stabalized and consistent in the scene and does not react or change despite the angle of the camera, though the player is able to move the camera around to get a full 360 degree look at the room (which they become trapped in). 
+			</p>
+			<p>
+				&nbsp&nbsp&nbsp&nbsp&nbspIn terms of how the developers achieved this effect, I think it's a mixture of the temporary shader (a displacement shader of some kind) being applied in real-time as the image morphs but then the texture is swapped for a static warped model to match the effect of the shader since the warping soon stops and the room is left in a permanent state of disfigurement (this isn't shown in the images). The red and grey dots on the image are what I believe to be the specular lighting effect from a lighting technique that moves these colored lights around the scene until, like the frame itself, they settle and become part of the texture through a real-time swap. I believe it's also possible that instead of altering the texture itself through a swap, that the same texture is being stretched accross this frame and the geometry that constitutes the scene is being morphed. The red and grey colors might also be an alteration of the original texture's pixels - this could have been done using a similar "mix" function that we utilized in the lecture examples and the other parts of the homework which would sample the area of the original texture and mix the color with that of the specular highlighting spots. Seeing as how the scene shifts into place without a loading screen, thereby making it possible for the viewer to notice if there were some kind of texture swap, the latter seems a more likely implementation of the shader/texture effects in this particular instance. 
+			</p>
 		</div>
 	</body>
 </html>
