@@ -1,0 +1,11 @@
+Part A:
+
+This scene generates a terrain heightmap using an image. I also incorporated the three.js example code for a Fresnel Shader from the website so that the "water" plane layer reflects the skybox surroundings and refracts the light, showing the seabed texture below it which forms the base of the heighmap. The camera is controlled in a very similar way to the class example which introduced the orbital control script with some expections including a limited zoom out distance and some camera speed changes. The gui is self contained and adjusting its values will not alter the camera which is intentional. There is one value to control the strength of the displacement for the heightmap and the rest control various attributes of the fresnel effect.
+
+For creativity, I used photoshop to compile and edit images together to give it a Star Wars theme in conjunction with careful edits to the heightmap mix function and the textures which make up the heightmap elevation layers. The end result is a very sandy, volcanic looking lettering and an "easter egg" of sorts in the skybox itself that is reflected down on the water.
+
+Part B:
+
+For my particle system, I chose to run with a combination of GPUParticleSystem.js and an internal particle system using an embedded VS/FS as shown in the class examples. The main theme of the scene was meant to be a stormy, torrent-like rain mixed with some sparkley/smokey effects on top. The rain is run through GPUParticleSystem.js and uses the build-in noise image analysis to generate the noise function. The fog is done using point sprites and a separate, more simple particle system with its own VS/FS and the noise function is run using Perlin noise. 
+
+I did my best to try and make the "fog" as different looking from snow as possible by having its movement pattern appear more wind-like and free flowing. I think it can be taken either way, as light snowing still fits the theme of my scene. The GUI control is only for the rain system and it controls things like how much rain there is on screen, how long it last, light color deviation, and speed, amongst other things. All the textures used in this scene were taken and modified in Photoshop from open source online images to fit my needs. 
