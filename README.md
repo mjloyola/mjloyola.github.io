@@ -18,3 +18,17 @@ Screenshot A: https://mjloyola.github.io/homework/homework2/homework2a_screensho
 
 Homework 2B: https://mjloyola.github.io/homework/homework2/homework2b.html  
 Screenshot B: https://mjloyola.github.io/homework/homework2/homework2b_screenshot.PNG
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+
+Homework 3 README: https://mjloyola.github.io/homework/homework3/homework3_readme.txt
+
+Homework 3A (E.C.): Skipped
+Screenshot A: N/A
+
+Homework 3B: https://mjloyola.github.io/homework/homework3/homework3b.html
+Screenshot B1: https://mjloyola.github.io/homework/homework3/homework3b1_screenshot.PNG
+Screenshot B2: https://mjloyola.github.io/homework/homework3/homework3b2_screenshot.PNG
+
+Homework 3C: https://mjloyola.github.io/homework/homework3/homework3c.pdf
+Screenshot C: N/A
