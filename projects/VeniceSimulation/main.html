@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>CMPM163 Venice Simulation</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<style>
+			body {
+			  	margin: 0px;
+				overflow: hidden;
+			}
+		</style>
+	</head>
+	<body>
+		<!--Standard Libraries-->
+		<script src="js/three.js"></script>
+		<script src="js/OrbitControls.js"></script>
+		<script src="js/OBJLoader.js"></script>
+		<script src="js/dat.gui.min.js"></script>
+
+		<!--Shader Files-->
+		<script src="js/skyshader.js"></script>
+		<script src="js/cloudShader.js"></script>
+		<script src="js/waterShader.js"></script>
+		<script src="js/buildingshader.js"></script>
+		<script src="js/lowelevshader.js"></script>
+
+		<script>
+			//Standard Variables
+			var container;
+			var camera, scene, renderer;
+			var gui = new dat.GUI( { width: 350 } ), options, controls;
+
+			//Shader Variables
+			var sky, sunSphere, moonSphere;
+			var cloud, cloudGeometry, cloudMaterial;
+			var water, waterGeometry, waterMaterial;
+
+			var city, lowelev;
+
+			//Prototypes
+			Sky.prototype = Object.create( THREE.Mesh.prototype );
+
+			init();
+			animate();
+
+			function init() {
+				camera = new THREE.PerspectiveCamera( 60, window.innerWidth / window.innerHeight, 100, 2000000 );
+				camera.position.set( 0, 100, 2000 );
+				scene = new THREE.Scene();
+
+				/////////////////////Particle Clouds//////////////////////
+
+				cloudGeometry = new THREE.Geometry(); //large geometry which holds all the clouds
+
+				var cloudTexture = new THREE.TextureLoader().load( "images/cloud.png");
+
+				cloudMaterial = new THREE.ShaderMaterial( {
+					uniforms: {
+						texture: { type: "t", value: cloudTexture }
+					},
+					vertexShader : cloudVS,
+					fragmentShader : cloudFS,
+					depthWrite : false,
+					depthTest : false,
+					transparent : true
+				} );
+
+				//mesh per cloud (uses plane geometry)
+				var cloudMeshIndividual = new THREE.Mesh( new THREE.PlaneGeometry( 100, 100 ) ); //changing the plane size will also change cloud size
+
+				//modifiable values ~ these decide how the cloud object gets assembled
+				var cloudSpreadWidth = 240000; //this number needs to be quite high in order for changes to be noticable (changes how thin or wide the object is)
+				var cloudProximity = 9.5; //this determines how close the clouds are together
+				var cloudDepth = 50000; //this should be changed with cloudSpreadWidth in order to create more cloud layers (wider spread needs a higher depth number)
+				var cloudSize = 60.0; //this is one factor in determining the size of the clouds ~ it should be changed alongsize the (x,y) of the "cloudMeshIndividual" plane
+				var numClouds = 10000; //tells the loop how many clouds to make
+
+				//this loop creates i amount clouds in the cloud object
+				//interior formulas shouldn't be changed, instead modify the variables above
+				for ( var i = 0; i < numClouds; i++ ) {
+					cloudMeshIndividual.position.x = Math.random() * cloudSpreadWidth;
+					cloudMeshIndividual.position.y = i * cloudProximity - numClouds;
+					cloudMeshIndividual.position.z = - Math.random() * Math.random() * cloudDepth;
+					cloudMeshIndividual.rotation.z = Math.random() * Math.PI *2;
+					cloudMeshIndividual.scale.x = cloudMeshIndividual.scale.y = Math.random() * cloudSize + 1.5;
+
+					//each cloud "plane" is merged with the larger geometry ~ this improves performance
+					cloudMeshIndividual.updateMatrix();
+					cloudGeometry.merge(cloudMeshIndividual.geometry, cloudMeshIndividual.matrix);
+				}
+
+				//this is the merged cloud object
+				cloud = new THREE.Mesh( cloudGeometry, cloudMaterial );
+				cloud.rotation.x = Math.PI/2; //this shouldn't be changed because it keeps the plane paralell to the water and the horizon
+				//modify these values to move the cloud plane
+				cloud.position.x = -8 * numClouds;
+				cloud.position.y = 0.6 * numClouds;
+				cloud.position.z = -5 * numClouds;
+				scene.add( cloud );
+
+				//////////////////End Particle Clouds///////////////////
+
+				/////////////////////Water Plane///////////////////////
+
+				waterGeometry = new THREE.PlaneGeometry(16000, 16000, 20, 20); //edit (x,y) to change plane size ~ will need to stay in the thousands
+				waterGeometry.computeFaceNormals();
+				waterGeometry.computeVertexNormals();
+
+				var waterTexture = new THREE.TextureLoader().load("images/water.png");
+
+				waterMaterial = new THREE.ShaderMaterial({
+					uniforms: {
+						uMap: {type: "t", value: waterTexture},
+						uTime: {type: 'f', value: 0.0},
+						uStrength: {type: 'f', value: 10},
+						uColor: {type: 'f', value: new THREE.Color('#ADD8E6')},
+						sunPos: { type: 'v3', value: new THREE.Vector3(1, 1, 1) },
+						moonPos: { type: 'v3', value: new THREE.Vector3(1, -1, 1) }
+					},
+					vertexShader: waterVS,
+					fragmentShader: waterFS,
+					side: THREE.DoubleSide
+				});
+
+				water = new THREE.Mesh(waterGeometry, waterMaterial);
+				water.geometry.computeFaceNormals();
+				water.geometry.computeVertexNormals();
+				water.position.z = -1000; //position the water under the clouds and within the city
+		        water.rotateX(-Math.PI/2.0); //this shouldn't be changed as it keep the plane paralell to the clouds and the horizon
+				water.material.uniforms.uMap.value.wrapS = water.material.uniforms.uMap.value.wrapT = THREE.RepeatWrapping; //wraps the texture around the plane
+				scene.add(water);
+
+				///////////////////End Water Plane///////////////////////
+
+				///////////////////Begin City Generation///////////////////////
+
+				var objloader = new THREE.OBJLoader();
+
+				var wall = new THREE.TextureLoader().load('images/win.png');
+				wall.magFilter = THREE.NearestFilter;
+				wall.minFilter = THREE.LinearMipMapLinearFilter;
+				wall.wrapS = THREE.RepeatWrapping;
+				wall.wrapT = THREE.RepeatWrapping;
+
+				objloader.load('./resources/venice.obj', function (mesh) {
+					mesh.children[0].geometry.computeFaceNormals();
+					mesh.children[0].geometry.computeVertexNormals();
+					mesh.children[0].material = new THREE.ShaderMaterial({
+						uniforms: {
+							wall: { type: 't', value: wall },
+							sunPos: { type: 'v3', value: new THREE.Vector3(1, 1, 1) },
+							moonPos: { type: 'v3', value: new THREE.Vector3(1, -1, 1) }
+						},
+						vertexShader: buildingvs,
+						fragmentShader: buildingfs
+					});
+					mesh.scale.set(1.5, 1.5, 1.5);
+					mesh.rotateX(-Math.PI/2);
+					mesh.rotateZ(Math.PI);
+					mesh.translateX(4000);
+					mesh.translateY(-2000);
+					mesh.translateZ(20);
+					city = mesh;
+					scene.add(mesh);
+				});
+
+				objloader.load('./resources/venice_lowelev.obj', function (mesh) {
+					mesh.children[0].geometry.computeFaceNormals();
+					mesh.children[0].geometry.computeVertexNormals();
+					mesh.children[0].material = new THREE.ShaderMaterial({
+						uniforms: {
+							sunPos: { type: 'v3', value: new THREE.Vector3(1, 1, 1) },
+							moonPos: { type: 'v3', value: new THREE.Vector3(1, -1, 1) }
+						},
+						vertexShader: lowelevvs,
+						fragmentShader: lowelevfs
+					});
+					mesh.scale.set(1.5, 1.5, 1.5);
+					mesh.rotateX(-Math.PI/2);
+					mesh.rotateZ(Math.PI);
+					mesh.translateX(4000);
+					mesh.translateY(-2000);
+					mesh.translateZ(20);
+					lowelev = mesh;
+					scene.add(mesh);
+				});
+
+				///////////////////End Water Plane///////////////////////
+
+				///////////////////////GUI///////////////////////////
+
+				options  = {
+					Time_Speed: 2.5,
+					Cloud_Speed: 0.5,
+					Wave_Speed: 0.004,
+					Wave_Strength: 10.0
+				};
+
+				gui.add( options, "Time_Speed", 0.5, 10);
+				gui.add( options, "Cloud_Speed", 0.0, 4.0);
+				gui.add( options, "Wave_Speed", 0.001, 0.04);
+				gui.add( options, "Wave_Strength", 10.0, 80.0);
+
+				///////////////////////End GUI///////////////////////
+
+				renderer = new THREE.WebGLRenderer();
+				renderer.setPixelRatio( window.devicePixelRatio );
+				renderer.setSize( window.innerWidth, window.innerHeight );
+				document.body.appendChild( renderer.domElement );
+				controls = new THREE.OrbitControls( camera, renderer.domElement );
+				controls.addEventListener( 'change', render );
+				controls.enableZoom = false;
+				controls.enablePan = false;
+				controls.maxPolarAngle = Math.PI/2 - 0.1;
+				initializesky();
+				window.addEventListener( 'resize', onWindowResize, false );
+			}
+
+			function Sky(){
+				var uniforms = {
+					luminance: { value: 1.1 },
+					turbidity: { value: 2 },
+					rayleigh: { value: 1 },
+					mieCoefficient: { value: 0.005 },
+					mieDirectionalG: { value: 0.8 },
+					sunPosition: { value: new THREE.Vector3() },
+					moonturbidity: { value: 1 },
+					moonrayleigh: { value: 0 },
+					moonmieCoefficient: { value: 0.001 },
+					moonmieDirectionalG: { value: 0.984 },
+					moonPosition: { value: new THREE.Vector3() }
+				};
+				var material = new THREE.ShaderMaterial( {
+					fragmentShader: skyfs,
+					vertexShader: skyvs,
+					uniforms: THREE.UniformsUtils.clone( uniforms ),
+					side: THREE.BackSide
+				} );
+				THREE.Mesh.call( this, new THREE.SphereBufferGeometry( 1, 40, 15 ), material );
+			}
+
+			function initializesky() {
+				sky = new Sky();
+				sky.scale.setScalar( 450000 );
+				scene.add( sky );
+				sunSphere = new THREE.Mesh(
+					new THREE.SphereBufferGeometry( 20000, 16, 8 ),
+					new THREE.MeshBasicMaterial( { color: 0xffffff } )
+				);
+				sunSphere.position.y = - 700000;
+				sunSphere.visible = false;
+				scene.add( sunSphere );
+				moonSphere = new THREE.Mesh(
+					new THREE.SphereBufferGeometry( 20000, 16, 8 ),
+					new THREE.MeshBasicMaterial( { color: 0xffffff } )
+				);
+				moonSphere.position.y =  700000;
+				moonSphere.visible = false;
+				scene.add( moonSphere );
+
+				var turbidity = 10;
+				var rayleigh = 1.5;
+				var mieCoefficient = 0.005;
+				var mieDirectionalG = 0.8;
+				var moonturbidity = 1;
+				var moonrayleigh = 0;
+				var moonmieCoefficient = 0.001;
+				var moonmieDirectionalG = 0.984;
+				var luminance = 1.05;
+				var inclination = 0.49;
+				var azimuth = 0.25;
+				var sun = false;
+				var moon = false;
+				var distance = 400000;
+				var inclination = 0.49;
+
+				var uniforms = sky.material.uniforms;
+				uniforms.turbidity.value = turbidity;
+				uniforms.rayleigh.value = rayleigh;
+				uniforms.luminance.value = luminance;
+				uniforms.mieCoefficient.value = mieCoefficient;
+				uniforms.mieDirectionalG.value = mieDirectionalG;
+				uniforms.moonturbidity.value = moonturbidity;
+				uniforms.moonrayleigh.value = moonrayleigh;
+				uniforms.moonmieCoefficient.value = moonmieCoefficient;
+				uniforms.moonmieDirectionalG.value = moonmieDirectionalG;
+
+				var theta = Math.PI * ( inclination - 0.5 );
+				var phi = 2 * Math.PI * ( azimuth - 0.5 );
+				sunSphere.position.x = distance * Math.cos( phi );
+				sunSphere.position.y = distance * Math.sin( phi ) * Math.sin( theta );
+				sunSphere.position.z = distance * Math.sin( phi ) * Math.cos( theta );
+				sunSphere.visible = sun;
+				uniforms.sunPosition.value.copy( sunSphere.position );
+
+				var theta = Math.PI * ( inclination + 0.5 );
+				var phi = 2 * Math.PI * ( azimuth - 0.5 );
+				moonSphere.position.x = distance * Math.cos( phi );
+				moonSphere.position.y = distance * Math.sin( phi ) * Math.sin( theta );
+				moonSphere.position.z = distance * Math.sin( phi ) * Math.cos( theta );
+				moonSphere.visible = moon;
+				uniforms.moonPosition.value.copy( moonSphere.position );
+			}
+
+			function onWindowResize() {
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+				renderer.setSize( window.innerWidth, window.innerHeight );
+			}
+
+			function animate() {
+				requestAnimationFrame( animate );
+				render();
+			}
+
+			function render() {
+				//update objects in scene
+				for(var i = 0; i < scene.children.length; i++) {
+					if(scene.children[i].Update != null) {
+						scene.children[i].Update();
+					}
+				}
+
+				//cloud movement speed
+				cloud.position.z += options.Cloud_Speed;
+
+				//water movement speed
+				water.material.uniforms.uTime.value += options.Wave_Speed;
+				//water displacement strength
+				water.material.uniforms.uStrength.value = options.Wave_Strength;
+
+				//cycle behavior
+				var time = performance.now()/(options.Time_Speed*10000);
+				var uniforms = sky.material.uniforms;
+				var distance = 400000;
+				var inclination = 0.49;
+				var theta = Math.PI * ( inclination*time - 0.5 );
+				var phi = 2 * Math.PI * ( 0.25 - 0.5 );
+				sunSphere.position.y = distance * Math.sin( phi ) * Math.sin( theta );
+				sunSphere.position.z = distance * Math.sin( phi ) * Math.cos( theta );
+				uniforms.sunPosition.value.copy( sunSphere.position );
+				var theta = Math.PI * ( inclination*time + 0.5 );
+				var phi = 2 * Math.PI * ( 0.25 - 0.5 );
+				moonSphere.position.y = distance * Math.sin( phi ) * Math.sin( theta );
+				moonSphere.position.z = distance * Math.sin( phi ) * Math.cos( theta );
+				uniforms.moonPosition.value.copy( moonSphere.position );
+
+				// cycle building behavior
+
+				if (city != null && lowelev != null) {
+					city.children[0].material.uniforms.sunPos.value.copy(sunSphere.position);
+					lowelev.children[0].material.uniforms.sunPos.value.copy(sunSphere.position);
+					water.material.uniforms.sunPos.value.copy(sunSphere.position);
+					city.children[0].material.uniforms.moonPos.value.copy(moonSphere.position);
+					lowelev.children[0].material.uniforms.moonPos.value.copy(moonSphere.position);
+					water.material.uniforms.moonPos.value.copy(moonSphere.position);
+				}
+
+				renderer.render( scene, camera );
+			}
+		</script>
+
+	</body>
+
+</html>
